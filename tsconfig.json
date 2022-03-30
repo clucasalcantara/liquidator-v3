@@ -3,6 +3,7 @@
 
   "compilerOptions": {
     "outDir": "./lib",
+    "moduleResolution": "node",
     "target": "es6",
     "lib": ["es2019"],
     "allowJs": true,
