@@ -1,3 +1,5 @@
+require('console-stamp')(console);
+
 import * as os from 'os';
 import * as fs from 'fs';
 import {
@@ -170,9 +172,13 @@ async function main() {
   }
 }
 
+function sleepAsync(ms): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // never returns
 async function liquidatableFromSolanaRpc() {
-  let mangoAccounts: MangoAccount[] = [];
+  const mangoAccounts: MangoAccount[] = [];
   await refreshAccounts(mangoGroup, mangoAccounts);
   watchAccounts(groupIds.mangoProgramId, mangoGroup, mangoAccounts);
 
@@ -186,6 +192,8 @@ async function liquidatableFromSolanaRpc() {
         );
         const allAOs = mangoAccountsWithAOs.map((ma) => ma.advancedOrdersKey);
 
+        console.log('Getting accounts 1')
+        await sleepAsync(500);
         const advancedOrders = await getMultipleAccounts(connection, allAOs);
         [cache, liqorMangoAccount] = await Promise.all([
           mangoGroup.loadCache(connection),
@@ -199,6 +207,7 @@ async function liquidatableFromSolanaRpc() {
           ma.advancedOrders = decoded.orders;
         });
       } else {
+        console.log('Not checking');
         [cache, liqorMangoAccount] = await Promise.all([
           mangoGroup.loadCache(connection),
           liqorMangoAccount.reload(connection, mangoGroup.dexProgramId),
@@ -210,6 +219,7 @@ async function liquidatableFromSolanaRpc() {
 
         // Handle trigger orders for this mango account
         if (checkTriggers && mangoAccount.advancedOrders) {
+          // console.log('Checking triggers');
           try {
             await processTriggerOrders(
               mangoGroup,
@@ -218,6 +228,8 @@ async function liquidatableFromSolanaRpc() {
               mangoAccount,
             );
           } catch (err: any) {
+            console.error(err.message);
+
             if (err.message.includes('MangoErrorCode::InvalidParam')) {
               console.error(
                 'Failed to execute trigger order, order already executed',
@@ -359,12 +371,12 @@ async function newAccountOnLiquidatableFeed(account) {
 
 // never returns
 async function liquidatableFromLiquidatableFeed() {
-  let candidates = new AsyncBlockingQueue<string>();
-  let candidatesSet = new Set<string>();
+  const candidates = new AsyncBlockingQueue<string>();
+  const candidatesSet = new Set<string>();
   const ws = new RpcWebSocketClient(liquidatableFeedWebsocketAddress, {
     max_reconnects: Infinity,
   });
-  ws.on('open', (x) => console.log("opened liquidatable feed"));
+  ws.on('open', (_) => console.log("opened liquidatable feed"));
   ws.on('error', (status) => console.log("error on liquidatable feed", status));
   ws.on('close', (err) => console.log("closed liquidatable feed", err));
   ws.on('candidate', (params) => {
@@ -397,9 +409,11 @@ function watchAccounts(
     ).offsetOf('owner');
 
     if (mangoSubscriptionId != -1) {
+      console.log('mangoSubscriptionId != -1')
       connection.removeProgramAccountChangeListener(mangoSubscriptionId);
     }
     if (dexSubscriptionId != -1) {
+      console.log('dexSubscriptionId != -1')
       connection.removeProgramAccountChangeListener(dexSubscriptionId);
     }
 
@@ -1065,6 +1079,7 @@ async function balanceTokens(
     await mangoAccount.reload(connection, mangoGroup.dexProgramId);
     const cache = await mangoGroup.loadCache(connection);
     const cancelOrdersPromises: Promise<string>[] = [];
+    console.log('Getting accounts 2')
     const bidsInfo = await getMultipleAccounts(
       connection,
       markets.map((m) => m.bidsAddress),
@@ -1072,6 +1087,7 @@ async function balanceTokens(
     const bids = bidsInfo
       ? bidsInfo.map((o, i) => Orderbook.decode(markets[i], o.accountInfo.data))
       : [];
+      console.log('Getting accounts 3')
     const asksInfo = await getMultipleAccounts(
       connection,
       markets.map((m) => m.asksAddress),
