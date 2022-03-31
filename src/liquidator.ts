@@ -1,4 +1,5 @@
 require('console-stamp')(console);
+import 'global-agent/bootstrap';
 
 import * as os from 'os';
 import * as fs from 'fs';
@@ -172,8 +173,26 @@ async function main() {
   }
 }
 
-function sleepAsync(ms): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function fetchMultipleAccounts(connection, accounts) {
+  const limitByCall = 900;
+  const waitTime = 1000;
+
+  const accountList = [...accounts];
+
+  console.log(`Calling getMultipleAccounts ${Math.ceil(accountList.length / limitByCall)} times for ${accounts.length} accounts`);
+  const result: any[] = [];
+  while (accountList.length !== 0) {
+    const list = accountList.splice(0, limitByCall);
+
+    console.log('Calling getMultipleAccounts');
+    const response = await getMultipleAccounts(connection, list);
+    Array.prototype.push.apply(result, response);
+
+    await sleep(waitTime);
+  }
+
+  console.log(`Returning ${result.length} accounts`);
+  return result;
 }
 
 // never returns
@@ -192,8 +211,7 @@ async function liquidatableFromSolanaRpc() {
         );
         const allAOs = mangoAccountsWithAOs.map((ma) => ma.advancedOrdersKey);
 
-        console.log('Getting accounts 1')
-        await sleepAsync(500);
+        console.log('getMultipleAccounts 1');
         const advancedOrders = await getMultipleAccounts(connection, allAOs);
         [cache, liqorMangoAccount] = await Promise.all([
           mangoGroup.loadCache(connection),
@@ -387,7 +405,7 @@ async function liquidatableFromLiquidatableFeed() {
       }
   });
 
-  while (true) {
+  for (;;) {
     const account = await candidates.dequeue();
     candidatesSet.delete(account);
     await newAccountOnLiquidatableFeed(account);
@@ -409,11 +427,9 @@ function watchAccounts(
     ).offsetOf('owner');
 
     if (mangoSubscriptionId != -1) {
-      console.log('mangoSubscriptionId != -1')
       connection.removeProgramAccountChangeListener(mangoSubscriptionId);
     }
     if (dexSubscriptionId != -1) {
-      console.log('dexSubscriptionId != -1')
       connection.removeProgramAccountChangeListener(dexSubscriptionId);
     }
 
@@ -511,10 +527,11 @@ async function refreshAccounts(
     console.log('Refreshing accounts...');
     console.time('getAllMangoAccounts');
 
+    const accounts = await client.getAllMangoAccounts(mangoGroup, undefined, true);
     mangoAccounts.splice(
       0,
       mangoAccounts.length,
-      ...(await client.getAllMangoAccounts(mangoGroup, undefined, true)),
+      ...accounts,
     );
     shuffleArray(mangoAccounts);
 
@@ -1087,7 +1104,7 @@ async function balanceTokens(
     const bids = bidsInfo
       ? bidsInfo.map((o, i) => Orderbook.decode(markets[i], o.accountInfo.data))
       : [];
-      console.log('Getting accounts 3')
+    console.log('Getting accounts 3')
     const asksInfo = await getMultipleAccounts(
       connection,
       markets.map((m) => m.asksAddress),

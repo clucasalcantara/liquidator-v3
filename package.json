@@ -51,6 +51,7 @@
     "console-stamp": "^3.0.4",
     "dotenv": "^10.0.0",
     "dotenv-expand": "^5.1.0",
+    "global-agent": "^3.0.0",
     "ts-node": "^9.1.1"
   }
 }
